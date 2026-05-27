@@ -200,7 +200,7 @@ function OllamaConfig({
     setProviderBaseUrl, 
     setProviderStatus,
     setModelTier 
-  } = useNodeShellStore.getState()
+  } = useNodeShellStore()
   const [newModelName, setNewModelName] = useState('')
   const [newModelCapabilities, setNewModelCapabilities] = useState<string[]>([])
 
@@ -329,7 +329,7 @@ function ProviderConfig({
     setProviderTimeout, 
     setProviderStatus,
     setModelTier 
-  } = useNodeShellStore.getState()
+  } = useNodeShellStore()
   const [editKey, setEditKey] = useState('')
   const [showKeyInput, setShowKeyInput] = useState(false)
 
@@ -462,7 +462,7 @@ function ProviderRow({
   providerId: string
   config: NodeShellState['providers'][string] 
 }) {
-  const { toggleProvider, removeProvider } = useNodeShellStore.getState()
+  const { toggleProvider, removeProvider } = useNodeShellStore()
   const [showConfirm, setShowConfirm] = useState(false)
   const modelCount = config.models.length
 
@@ -525,7 +525,7 @@ function ProviderRow({
 }
 
 function ProvidersTab() {
-  const { providers, activeTab } = useNodeShellStore.getState()
+  const { providers, activeTab } = useNodeShellStore()
   const [showAddModal, setShowAddModal] = useState(false)
   
   if (activeTab !== 'providers') return null
@@ -554,7 +554,7 @@ function ProvidersTab() {
 }
 
 function DashboardTab() {
-  const { activeTab, providers } = useNodeShellStore.getState()
+  const { activeTab, providers } = useNodeShellStore()
   
   if (activeTab !== 'dashboard') return null
 
@@ -597,7 +597,7 @@ function DashboardTab() {
 }
 
 function DeprecationsTab() {
-  const { activeTab, deprecations } = useNodeShellStore.getState()
+  const { activeTab, deprecations } = useNodeShellStore()
   
   if (activeTab !== 'deprecations') return null
 
@@ -640,7 +640,7 @@ function DeprecationsTab() {
 }
 
 function FallbackTab() {
-  const { activeTab, providers, fallbackChains, setFallbackChain } = useNodeShellStore.getState()
+  const { activeTab, providers, fallbackChains, setFallbackChain } = useNodeShellStore()
   
   if (activeTab !== 'fallback') return null
 
@@ -698,40 +698,7 @@ function FallbackTab() {
   )
 }
 
-function Tab({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
-  return (
-    <button
-      style={styles.tab(active)}
-      onClick={onClick}
-    >
-      {label}
-    </button>
-  )
-}
-
-function TabContent() {
-  const { activeTab } = useNodeShellStore.getState()
-  
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div style={{ display: 'flex', gap: 4, padding: 8, borderBottom: '1px solid var(--border)' }}>
-        <Tab label="Providers" active={activeTab === 'providers'} onClick={() => useNodeShellStore.setState({ activeTab: 'providers' })} />
-        <Tab label="Dashboard" active={activeTab === 'dashboard'} onClick={() => useNodeShellStore.setState({ activeTab: 'dashboard' })} />
-        <Tab label="Deprecations" active={activeTab === 'deprecations'} onClick={() => useNodeShellStore.setState({ activeTab: 'deprecations' })} />
-        <Tab label="Fallback" active={activeTab === 'fallback'} onClick={() => useNodeShellStore.setState({ activeTab: 'fallback' })} />
-      </div>
-      
-      <div style={{ flex: 1, overflow: 'hidden' }}>
-        <ProvidersTab />
-        <DashboardTab />
-        <DeprecationsTab />
-        <FallbackTab />
-      </div>
-    </div>
-  )
-}
-
-function NodeShellCollapsed({ 
+function NodeShellCollapsed({
   providerCount, 
   modelCount, 
   status 
@@ -811,7 +778,7 @@ function NodeShellCollapsed({
 }
 
 function NodeShellExpanded() {
-  const { providers, activeTab, setExpanded, expanded: isExpanded } = useNodeShellStore.getState()
+  const { providers, activeTab, setExpanded, expanded: isExpanded } = useNodeShellStore()
   
   const providerCount = Object.keys(providers).length
   const modelCount = Object.values(providers).reduce((sum, p) => sum + p.models.length, 0)
@@ -829,6 +796,7 @@ function NodeShellExpanded() {
     <div 
       style={{
         width: 320,
+        height: 480,
         background: 'var(--bg-node)',
         border: '1px solid var(--accent)',
         borderRadius: 'var(--radius)',
@@ -875,8 +843,13 @@ function NodeShellExpanded() {
         </div>
       </div>
 
-      <TabContent />
-
+      <div style={{ flex: 1, overflow: 'hidden' }}>
+        <ProvidersTab />
+        <DashboardTab />
+        <DeprecationsTab />
+        <FallbackTab />
+      </div>
+      
       <div style={{ padding: 8, borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Output: Orchestrator</span>
         <Handle type="source" position={Position.Bottom} style={{ opacity: 0, pointerEvents: 'none' }} />
@@ -886,31 +859,27 @@ function NodeShellExpanded() {
 }
 
 function NodeShell({ id: _id, data: _data, selected: _selected }: NodeProps<any>) {
-  const { expanded, setExpanded } = useNodeShellStore.getState()
+  const { expanded, providers } = useNodeShellStore()
 
-  const handleClick = () => {
-    setExpanded(!expanded)
-  }
-
-  const providerCount = Object.keys(useNodeShellStore.getState().providers).length
-  const modelCount = Object.values(useNodeShellStore.getState().providers)
+  const providerCount = Object.keys(providers).length
+  const modelCount = Object.values(providers)
     .reduce((sum, p) => sum + p.models.length, 0)
 
-  const statuses = Object.values(useNodeShellStore.getState().providers).map(p => p.status)
+  const statuses = Object.values(providers).map(p => p.status)
   const overallStatus = statuses.includes('error') ? 'error' : 
                         statuses.includes('degraded') ? 'degraded' : 
                         statuses.every(s => s === 'healthy') ? 'healthy' : 'unknown'
 
   return (
-    <div
-      style={{ cursor: 'pointer', transition: 'all 0.2s' }}
-      onClick={handleClick}
-    >
-      {expanded ? <NodeShellExpanded /> : <NodeShellCollapsed 
-        providerCount={providerCount} 
-        modelCount={modelCount} 
-        status={overallStatus} 
-      />}
+    <div style={{ cursor: 'pointer', transition: 'all 0.2s' }}>
+      {expanded
+        ? <NodeShellExpanded />
+        : <NodeShellCollapsed 
+            providerCount={providerCount} 
+            modelCount={modelCount} 
+            status={overallStatus} 
+          />
+      }
     </div>
   )
 }

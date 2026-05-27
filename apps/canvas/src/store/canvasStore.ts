@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { Node, Edge, applyNodeChanges, applyEdgeChanges, NodeChange, EdgeChange } from 'reactflow'
 import { FLOW_NODES, CORE_EDGES, FlowNodeDef } from '../data/flowNodes'
 import { layoutNodes } from '../utils/layout'
+import { useNodeShellStore } from '../nodes/NodeShell.store'
 
 interface CanvasStore {
   nodes: Node[]
@@ -50,6 +51,11 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     const next = new Set(expandedIds)
     if (next.has(id)) next.delete(id)
     else next.add(id)
+
+    if (id === 'node-shell') {
+      useNodeShellStore.getState().setExpanded(next.has(id))
+    }
+
     const laid = layoutNodes(nodes, edges, next)
     set({ expandedIds: next, nodes: laid })
   },
