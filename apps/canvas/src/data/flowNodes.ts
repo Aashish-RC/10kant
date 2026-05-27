@@ -84,6 +84,15 @@ export const FLOW_NODES: FlowNodeDef[] = [
     ]
   },
   {
+    id: 'node-shell',
+    label: 'Node Shell',
+    description: 'Central hub for managing AI model providers, API keys, and model selections',
+    category: 'Models',
+    color: '#6c63ff',
+    fixed: true,
+    configFields: []
+  },
+  {
     id: 'gemini',
     label: 'Gemini',
     description: 'Google Gemini models',
@@ -195,10 +204,11 @@ export const CORE_EDGES = [
   { id: 'e3', source: 'memory', target: 'orchestrator' },
   { id: 'e4', source: 'orchestrator', target: 'context-assembler', animated: true },
   { id: 'e5', source: 'context-assembler', target: 'model-hub', animated: true },
-  { id: 'e6', source: 'model-hub', target: 'gemini' },
-  { id: 'e7', source: 'credential-vault', target: 'gemini' },
-  { id: 'e8', source: 'gemini', target: 'output-engine', animated: true },
-  { id: 'e9', source: 'output-engine', target: 'quality-gate', animated: true },
-  { id: 'e10', source: 'quality-gate', target: 'safety', animated: true },
-  { id: 'e11', source: 'safety', target: 'chat-output', animated: true }
+  { id: 'e6', source: 'model-hub', target: 'node-shell', animated: true },
+  { id: 'e7', source: 'credential-vault', target: 'node-shell' },
+  { id: 'e8', source: 'node-shell', target: 'gemini' },
+  { id: 'e9', source: 'gemini', target: 'output-engine', animated: true },
+  { id: 'e10', source: 'output-engine', target: 'quality-gate', animated: true },
+  { id: 'e11', source: 'quality-gate', target: 'safety', animated: true },
+  { id: 'e12', source: 'safety', target: 'chat-output', animated: true }
 ]

@@ -6,10 +6,11 @@ import ReactFlow, {
 import 'reactflow/dist/style.css'
 import { useCanvasStore } from './store/canvasStore'
 import Ra1Node from './nodes/Ra1Node'
+import NodeShell from './nodes/NodeShell'
 import TopBar from './components/TopBar'
 import Sidebar from './components/Sidebar'
 
-const nodeTypes = { ra1: Ra1Node }
+const nodeTypes = { ra1: Ra1Node, 'node-shell': NodeShell }
 
 const defaultEdgeOptions = {
   type: 'smoothstep',
