@@ -1,31 +1,30 @@
 import { create } from 'zustand'
-import { Node, Edge, applyNodeChanges, applyEdgeChanges, NodeChange, EdgeChange } from 'reactflow'
-import { FLOW_NODES, CORE_EDGES, FlowNodeDef } from '../data/flowNodes'
-import { layoutNodes } from '../utils/layout'
-import { useNodeShellStore } from '../nodes/NodeShell.store'
+import { Node, Edge, applyNodeChanges, applyEdgeChanges, NodeChange, EdgeChange, XYPosition } from 'reactflow'
+import { ProviderId } from '../data/providers'
+import { useModelStore } from './model.store'
+import { useVaultStore } from './vault.store'
 
 interface CanvasStore {
   nodes: Node[]
   edges: Edge[]
   expandedIds: Set<string>
-  configValues: Record<string, Record<string, any>>
   init: () => void
   toggleExpand: (id: string) => void
   onNodesChange: (changes: NodeChange[]) => void
   onEdgesChange: (changes: EdgeChange[]) => void
-  setConfigValue: (nodeId: string, key: string, value: any) => void
-  relayout: () => void
+  dropProvider: (providerId: ProviderId, position: XYPosition) => void
+  removeProviderNode: (nodeId: string) => void
 }
 
-function makeNode(def: FlowNodeDef): Node {
+function systemNode(id: string, type: string, x: number, y: number): Node {
+  return { id, type, position: { x, y }, data: {}, draggable: false, selectable: true, deletable: false }
+}
+
+function edgeStyle(color: string, animated = false): Partial<Edge> {
   return {
-    id: def.id,
-    type: 'ra1',
-    position: { x: 0, y: 0 },
-    draggable: false,
-    selectable: true,
-    deletable: !def.fixed,
-    data: def
+    type: 'smoothstep',
+    animated,
+    style: { stroke: color, strokeWidth: 1.5, opacity: 0.8 },
   }
 }
 
@@ -33,59 +32,82 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   nodes: [],
   edges: [],
   expandedIds: new Set(),
-  configValues: {},
 
   init: () => {
-    const nodes = FLOW_NODES.map(makeNode)
-    const edges: Edge[] = CORE_EDGES.map(e => ({
-      ...e,
-      type: 'smoothstep',
-      style: { stroke: '#6c63ff', strokeWidth: 1.5, opacity: 0.7 },
-    }))
-    const laid = layoutNodes(nodes, edges, new Set())
-    set({ nodes: laid, edges })
+    const nodes: Node[] = [
+      systemNode('model', 'model-node', 400, 200),
+      systemNode('vault', 'vault-node', 120, 200),
+    ]
+    const edges: Edge[] = [
+      { id: 'e-vault-model', source: 'vault', target: 'model', ...edgeStyle('#f8961e') },
+    ]
+    set({ nodes, edges })
   },
 
-  toggleExpand: (id: string) => {
-    const { expandedIds, nodes, edges } = get()
-    const next = new Set(expandedIds)
-    if (next.has(id)) next.delete(id)
-    else next.add(id)
+  toggleExpand: (id) => {
+    const next = new Set(get().expandedIds)
+    const isNowOpen = !next.has(id)
+    if (isNowOpen) { next.add(id) } else { next.delete(id) }
 
-    if (id === 'node-shell') {
-      useNodeShellStore.getState().setExpanded(next.has(id))
-    }
+    if (id === 'model') useModelStore.getState().setModelExpanded(isNowOpen)
+    if (id === 'vault') useVaultStore.getState().setExpanded(isNowOpen)
 
-    const laid = layoutNodes(nodes, edges, next)
-    set({ expandedIds: next, nodes: laid })
+    set({ expandedIds: next })
   },
 
-  onNodesChange: (changes: NodeChange[]) => {
+  onNodesChange: (changes) => {
     const filtered = changes.filter(c => {
       if (c.type === 'remove') {
         const node = get().nodes.find(n => n.id === (c as any).id)
-        return node?.data?.fixed !== true
+        return node?.deletable !== false
       }
       return true
     })
     set(s => ({ nodes: applyNodeChanges(filtered, s.nodes) }))
   },
 
-  onEdgesChange: (changes: EdgeChange[]) => {
+  onEdgesChange: (changes) => {
     set(s => ({ edges: applyEdgeChanges(changes, s.edges) }))
   },
 
-  setConfigValue: (nodeId: string, key: string, value: any) => {
+  dropProvider: (providerId, position) => {
+    const placed = useModelStore.getState().placeProvider(providerId)
+    const nodeId = placed.id
+
+    const newNode: Node = {
+      id: nodeId,
+      type: 'provider-node',
+      position,
+      data: { nodeId, providerId },
+      draggable: true,
+      selectable: true,
+      deletable: true,
+    }
+
+    const newEdge: Edge = {
+      id: `e-${nodeId}-model`,
+      source: nodeId,
+      target: 'model',
+      ...edgeStyle('#6c63ff', true),
+    }
+
+    const next = new Set(get().expandedIds)
+    next.add(nodeId)
+
     set(s => ({
-      configValues: {
-        ...s.configValues,
-        [nodeId]: { ...(s.configValues[nodeId] || {}), [key]: value }
-      }
+      nodes: [...s.nodes, newNode],
+      edges: [...s.edges, newEdge],
+      expandedIds: next,
     }))
   },
 
-  relayout: () => {
-    const { nodes, edges, expandedIds } = get()
-    set({ nodes: layoutNodes(nodes, edges, expandedIds) })
-  }
+  removeProviderNode: (nodeId) => {
+    useModelStore.getState().removeProvider(nodeId)
+    useVaultStore.getState().revokeKey(nodeId.replace('provider-', ''))
+    set(s => ({
+      nodes: s.nodes.filter(n => n.id !== nodeId),
+      edges: s.edges.filter(e => e.source !== nodeId && e.target !== nodeId),
+      expandedIds: new Set([...s.expandedIds].filter(id => id !== nodeId)),
+    }))
+  },
 }))

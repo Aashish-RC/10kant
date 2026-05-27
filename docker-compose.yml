@@ -124,6 +124,40 @@ services:
     depends_on:
       - postgres
 
+  # --- Infisical (Secret Vault) ---
+  infisical-db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: infisical
+      POSTGRES_PASSWORD: ${INFISICAL_DB_PASSWORD:-infisical-secret}
+      POSTGRES_DB: infisical
+    volumes:
+      - infisical_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U infisical"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  infisical:
+    image: infisical/infisical:latest
+    ports:
+      - "8080:8080"
+    environment:
+      NODE_ENV: production
+      ENCRYPTION_KEY: ${INFISICAL_ENCRYPTION_KEY}
+      AUTH_SECRET: ${INFISICAL_AUTH_SECRET}
+      DB_CONNECTION_STRING: postgresql://infisical:${INFISICAL_DB_PASSWORD:-infisical-secret}@infisical-db:5432/infisical
+      DB_CONNECTION_STRING_FOR_NO_MULTI_DC: postgresql://infisical:${INFISICAL_DB_PASSWORD:-infisical-secret}@infisical-db:5432/infisical
+      POSTHOG_HOST: ""
+      SITE_URL: http://localhost:8080
+      TELEMETRY_ENABLED: "false"
+    depends_on:
+      infisical-db:
+        condition: service_healthy
+    command: >
+      sh -c "./wait-for-it.sh infisical-db:5432 -- npx prisma migrate deploy && node dist/main.js"
+
   # --- LibreChat (Chat surface) ---
   librechat:
     image: ghcr.io/danny-avila/librechat:latest
@@ -219,3 +253,4 @@ volumes:
   redisdata:
   minio_data:
   clickhouse_data:
+  infisical_pgdata:

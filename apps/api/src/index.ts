@@ -11,6 +11,12 @@ const port = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
+// Routes
+import modelsRouter from './routes/models';
+import vaultRouter from './routes/vault';
+app.use('/api/models', modelsRouter);
+app.use('/api/vault', vaultRouter);
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   connectionTimeoutMillis: 5000,
