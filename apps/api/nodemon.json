@@ -1,0 +1,13 @@
+{
+  "exec": "npx ts-node src/index.ts",
+  "ext": "ts",
+  "env": {
+    "PORT": "3001",
+    "DB_HOST": "localhost",
+    "DB_PORT": "5432",
+    "DB_NAME": "ra1",
+    "DB_USER": "postgres",
+    "DB_PASSWORD": "postgres"
+  },
+  "ignore": ["node_modules"]
+}

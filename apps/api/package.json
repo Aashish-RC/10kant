@@ -1,0 +1,27 @@
+{
+  "name": "@ra1/api",
+  "version": "1.0.0",
+  "description": "RA1 backend API",
+  "scripts": {
+    "dev": "nodemon src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@ra1/shared": "file:/packages/shared",
+    "cors": "^2.8.0",
+    "dotenv": "^16.0.0",
+    "express": "^4.18.0",
+    "pg": "^8.8.0",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.0",
+    "@types/express": "^4.17.0",
+    "@types/node": "^20.0.0",
+    "@types/pg": "^8.6.0",
+    "nodemon": "^2.0.0",
+    "ts-node": "^2.0.0",
+    "typescript": "^5.2.0"
+  }
+}
