@@ -5,6 +5,8 @@ import { useVaultStore } from '../store/vault.store'
 import { useCanvasStore } from '../store/canvasStore'
 import { PROVIDER_REGISTRY, ProviderId, CAP_LABELS } from '../data/providers'
 
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001'
+
 const S = {
   input: { width: '100%', background: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', fontSize: 11, padding: '6px 10px', fontFamily: 'var(--font)', outline: 'none' } as React.CSSProperties,
   label: { display: 'block', fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4, marginTop: 10 } as React.CSSProperties,
@@ -65,7 +67,7 @@ function ModelRow({
 
 function ProviderNodeExpanded({ nodeId, providerId }: { nodeId: string; providerId: ProviderId }) {
   const def = PROVIDER_REGISTRY[providerId]
-  const { providers, setBaseUrl, setTemperature, toggleModel, syncModels, syncStatus, syncError } = useModelStore()
+  const { providers, setBaseUrl, setTemperature, toggleModel, syncModels, syncStatus, syncError, lastSyncedAt } = useModelStore()
   const { saveKey, hasKey, getEntry, setKeyValid } = useVaultStore()
   const { removeProviderNode } = useCanvasStore()
 
@@ -264,9 +266,38 @@ function ProviderNodeExpanded({ nodeId, providerId }: { nodeId: string; provider
         )}
       </div>
 
-      {/* Output label */}
-      <div style={{ background: `${def.color}18`, borderTop: '1px solid var(--border)', padding: '6px 12px', display: 'flex', justifyContent: 'center' }}>
-        <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Output</span>
+      {/* Sync status footer */}
+      <div style={{ background: `${def.color}18`, borderTop: '1px solid var(--border)', padding: '6px 12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+        {(() => {
+          const lastSync = lastSyncedAt[providerId]
+          const hoursAgo = lastSync ? Math.floor((Date.now() - lastSync) / 3600000) : null
+          const isLive = hoursAgo !== null && hoursAgo < 6
+          return (
+            <>
+              {isLive ? (
+                <>
+                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', boxShadow: '0 0 4px #22c55e' }} />
+                  <span style={{ fontSize: 10, color: '#22c55e', fontWeight: 600 }}>Live</span>
+                </>
+              ) : lastSync ? (
+                <>
+                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#f59e0b' }} />
+                  <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Last synced {hoursAgo}h ago</span>
+                </>
+              ) : null}
+              <button
+                onClick={async () => {
+                  try {
+                    await fetch(`${API_BASE}/api/models/sync/trigger`, { method: 'POST' })
+                  } catch { /* ignore */ }
+                }}
+                style={{ fontSize: 9, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
+              >
+                Sync Now
+              </button>
+            </>
+          )
+        })()}
       </div>
     </div>
   )
@@ -274,26 +305,31 @@ function ProviderNodeExpanded({ nodeId, providerId }: { nodeId: string; provider
 
 function ProviderNodeCollapsed({ nodeId, providerId }: { nodeId: string; providerId: ProviderId }) {
   const def = PROVIDER_REGISTRY[providerId]
-  const { providers } = useModelStore()
+  const { providers, pendingChanges } = useModelStore()
   const provider = providers[nodeId]
   const statusColor = !provider ? '#6b7280' : provider.status === 'healthy' ? '#22c55e' : provider.status === 'error' ? '#ef4444' : '#6b7280'
 
   const newCount = provider?.models.filter(m => m.newlyDiscovered).length ?? 0
   const depCount = provider?.models.filter(m => m.deprecated).length ?? 0
+  const pendingCount = pendingChanges[providerId]?.length ?? 0
 
   return (
-    <div style={{ width: 200, minHeight: 56, background: 'var(--bg-node)', border: `1px solid ${def.color}44`, borderRadius: 'var(--radius)', cursor: 'pointer', boxShadow: '0 4px 16px rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', gap: 10, padding: '0 12px' }}>
+    <div style={{ width: 200, minHeight: 56, background: 'var(--bg-node)', border: `1px solid ${pendingCount > 0 ? '#f59e0b44' : def.color}44`, borderRadius: 'var(--radius)', cursor: 'pointer', boxShadow: pendingCount > 0 ? '0 0 0 1px #f59e0b33, 0 4px 16px rgba(0,0,0,0.4)' : '0 4px 16px rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', gap: 10, padding: '0 12px' }}>
       <div style={{ width: 30, height: 30, borderRadius: 7, background: `${def.color}22`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, position: 'relative' }}>
         {def.icon}
         <div style={{ position: 'absolute', bottom: -2, right: -2, width: 8, height: 8, borderRadius: '50%', background: statusColor, border: '2px solid var(--bg-node)' }} />
+        {pendingCount > 0 && (
+          <div style={{ position: 'absolute', top: -4, left: -4, width: 10, height: 10, borderRadius: '50%', background: '#f59e0b', border: '2px solid var(--bg-node)' }} />
+        )}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-primary)' }}>{def.name}</div>
         <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
           {provider ? `${provider.models.filter(m => m.enabled).length} enabled` : 'loading...'}
         </div>
-        {(newCount > 0 || depCount > 0) && (
+        {(pendingCount > 0 || newCount > 0 || depCount > 0) && (
           <div style={{ display: 'flex', gap: 4, marginTop: 2 }}>
+            {pendingCount > 0 && <span style={{ fontSize: 8, background: '#f59e0b22', color: '#f59e0b', padding: '0 4px', borderRadius: 3, fontWeight: 600 }}>{pendingCount} pending</span>}
             {newCount > 0 && <span style={{ fontSize: 8, background: '#22c55e22', color: '#22c55e', padding: '0 4px', borderRadius: 3, fontWeight: 600 }}>{newCount} new</span>}
             {depCount > 0 && <span style={{ fontSize: 8, background: '#ef444422', color: '#ef4444', padding: '0 4px', borderRadius: 3, fontWeight: 600 }}>{depCount} dep.</span>}
           </div>

@@ -43,3 +43,4 @@ environment_variables:
 
 general_settings:
   master_key: os.environ/LITELLM_MASTER_KEY
+  allow_model_updates: true  # Enable POST /model/update for runtime key sync

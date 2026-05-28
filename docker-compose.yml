@@ -92,9 +92,16 @@ services:
       PORT: 3001
       LITELLM_URL: http://litellm:4000
       LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+      INFISICAL_URL: http://infisical:8080
+      INFISICAL_CLIENT_ID: ${INFISICAL_CLIENT_ID}
+      INFISICAL_CLIENT_SECRET: ${INFISICAL_CLIENT_SECRET}
+      INFISICAL_PROJECT_ID: ${INFISICAL_PROJECT_ID}
+      INFISICAL_ENVIRONMENT: dev
     depends_on:
       postgres:
         condition: service_healthy
+      infisical:
+        condition: service_started
 
   canvas:
     build:

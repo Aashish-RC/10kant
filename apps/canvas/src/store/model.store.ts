@@ -2,6 +2,17 @@ import { create } from 'zustand'
 import { ProviderId, ProviderModel, PROVIDER_REGISTRY } from '../data/providers'
 import { discoverProviderModels, mergeDiscoveredModels } from '../services/model-discovery'
 
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001'
+
+export interface ChangelogEntry {
+  id: number
+  changeType: 'added' | 'removed' | 'deprecated'
+  modelId: string
+  modelName?: string
+  detail?: string
+  createdAt: string
+}
+
 export interface PlacedProvider {
   id: string                        // unique canvas node ID e.g. 'provider-openai'
   providerId: ProviderId
@@ -44,8 +55,17 @@ interface ModelStore {
   clearNotifications: () => void
 
   // Dashboard tab in Model node
-  activeTab: 'overview' | 'deprecations'
-  setActiveTab: (tab: 'overview' | 'deprecations') => void
+  activeTab: 'overview' | 'deprecations' | 'updates'
+  setActiveTab: (tab: 'overview' | 'deprecations' | 'updates') => void
+
+  // Changelog sync (auto model change detection)
+  pendingChanges: Record<string, ChangelogEntry[]>  // keyed by providerId
+  hasChanges: boolean
+  lastChecked: number  // unix timestamp
+  lastSyncedAt: Record<string, number>  // per provider, when models were last applied
+
+  setPendingChanges: (data: { hasChanges: boolean; changes: Record<string, ChangelogEntry[]>; lastChecked: string }) => void
+  applyChanges: (providerIds: string[]) => Promise<void>  // calls POST /changelog/apply, then merges snapshots into provider models
 }
 
 export const useModelStore = create<ModelStore>((set, get) => ({
@@ -57,6 +77,11 @@ export const useModelStore = create<ModelStore>((set, get) => ({
   syncError: {},
   hasNewDiscoveries: false,
   hasNewDeprecations: false,
+
+  pendingChanges: {},
+  hasChanges: false,
+  lastChecked: 0,
+  lastSyncedAt: {},
 
   placeProvider: (providerId) => {
     const def = PROVIDER_REGISTRY[providerId]
@@ -166,4 +191,61 @@ export const useModelStore = create<ModelStore>((set, get) => ({
 
   activeTab: 'overview',
   setActiveTab: (activeTab) => set({ activeTab }),
+
+  // ─── Changelog Sync ──────────────────────────────────────────────────────
+
+  setPendingChanges: (data) => set({
+    pendingChanges: data.changes,
+    hasChanges: data.hasChanges,
+    lastChecked: new Date(data.lastChecked).getTime(),
+  }),
+
+  applyChanges: async (providerIds) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/models/changelog/apply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ providerIds }),
+      })
+      if (!res.ok) return
+
+      const data = await res.json() as { snapshots: Record<string, Array<{ id: string; name: string }>> }
+      const snapshots = data.snapshots
+
+      // Merge snapshots into our placed providers
+      set(s => {
+        const updatedProviders = { ...s.providers }
+        const updatedLastSyncedAt = { ...s.lastSyncedAt }
+
+        for (const [providerId, models] of Object.entries(snapshots)) {
+          const nodeId = `provider-${providerId}`
+          const existing = updatedProviders[nodeId]
+          if (!existing) continue
+
+          const { merged } = mergeDiscoveredModels(existing.models, models as any)
+          updatedProviders[nodeId] = {
+            ...existing,
+            models: merged,
+            status: 'healthy' as const,
+          }
+          updatedLastSyncedAt[providerId] = Date.now()
+        }
+
+        // Mark changes as seen for these providers
+        const pendingChanges = { ...s.pendingChanges }
+        for (const pid of providerIds) {
+          delete pendingChanges[pid]
+        }
+
+        return {
+          providers: updatedProviders,
+          lastSyncedAt: updatedLastSyncedAt,
+          pendingChanges,
+          hasChanges: Object.keys(pendingChanges).length > 0,
+        }
+      })
+    } catch {
+      // Silently fail
+    }
+  },
 }))

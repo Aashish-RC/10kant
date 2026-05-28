@@ -9,6 +9,10 @@ import TopBar from './components/TopBar'
 import Sidebar from './components/Sidebar'
 import ModelsPage from './pages/ModelsPage'
 import { ProviderId } from './data/providers'
+import { useChangelogSync } from './hooks/useChangelogSync'
+
+// Enable auto model change detection
+const ChangelogInit = () => { useChangelogSync(); return null }
 
 const nodeTypes = {
   'model-node': ModelNode,
@@ -86,6 +90,7 @@ export default function App() {
 
   return (
     <ReactFlowProvider>
+      <ChangelogInit />
       <div style={{ display: 'flex', flexDirection: 'column', width: '100vw', height: '100vh' }}>
         <TopBar page={page} onPageChange={setPage} />
         <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>

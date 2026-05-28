@@ -22,10 +22,21 @@ const pool = new Pool({
   connectionTimeoutMillis: 5000,
 });
 
+// Expose pool for routes/jobs that need it
+export { pool };
+
 (async () => {
   try {
     const result = await pool.query('SELECT 1');
     console.log('Connected to PostgreSQL');
+
+    // Ensure database schema (tables + indexes)
+    const { ensureSchema } = await import('./db/migrations');
+    await ensureSchema(pool);
+
+    // Start background model sync job
+    const { startModelSync } = await import('./jobs/modelSync');
+    startModelSync(pool);
   } catch (err) {
     console.error('PostgreSQL connection error (non-fatal):', err);
   }

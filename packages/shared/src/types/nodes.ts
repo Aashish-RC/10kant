@@ -32,3 +32,12 @@ export interface SpineNode extends BaseNode {
   nodeType: SpineNodeType;
   position: { x: number; y: number };
 }
+
+export interface ChangelogEntry {
+  id: number
+  changeType: 'added' | 'removed' | 'deprecated'
+  modelId: string
+  modelName?: string
+  detail?: string
+  createdAt: string
+}

@@ -8,6 +8,7 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
+    "@infisical/sdk": "^5.0.2",
     "@ra1/shared": "file:/packages/shared",
     "cors": "^2.8.0",
     "dotenv": "^16.0.0",
