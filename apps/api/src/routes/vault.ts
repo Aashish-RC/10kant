@@ -75,10 +75,11 @@ router.patch('/keys/:providerId/status', (req: Request, res: Response) => {
   const { isValid } = req.body;
 
   infisical.setValidationStatus(providerId, isValid === null ? null : Boolean(isValid));
+  const normalizedId = providerId.toLowerCase();
 
   res.json({
     success: true,
-    isValid: infisical.getValidationStatus(providerId),
+    isValid: infisical.getValidationStatus(normalizedId),
   });
 });
 
@@ -94,14 +95,14 @@ router.post('/keys/:providerId/test', async (req: Request, res: Response) => {
   const testUrls: Record<string, { url: string; headers: Record<string, string>; useKeyInUrl?: boolean }> = {
     openai: { url: 'https://api.openai.com/v1/models', headers: { Authorization: `Bearer ${rawKey}` } },
     anthropic: { url: 'https://api.anthropic.com/v1/models', headers: { 'x-api-key': rawKey, 'anthropic-version': '2023-06-01' } },
-    google: { url: `https://generativelanguage.googleapis.com/v1/models?key=${rawKey}`, headers: {}, useKeyInUrl: true },
+    google: { url: `https://generativelanguage.googleapis.com/v1/models?key=${encodeURIComponent(rawKey)}`, headers: {} },
     mistral: { url: 'https://api.mistral.ai/v1/models', headers: { Authorization: `Bearer ${rawKey}` } },
     cohere: { url: 'https://api.cohere.ai/v1/models', headers: { Authorization: `Bearer ${rawKey}` } },
     groq: { url: 'https://api.groq.com/openai/v1/models', headers: { Authorization: `Bearer ${rawKey}` } },
     together: { url: 'https://api.together.xyz/v1/models', headers: { Authorization: `Bearer ${rawKey}` } },
   };
 
-  const target = testUrls[providerId];
+  const target = testUrls[providerId.toLowerCase()];
   if (!target) {
     res.json({ valid: true });
     return;
@@ -109,11 +110,11 @@ router.post('/keys/:providerId/test', async (req: Request, res: Response) => {
 
   try {
     const r = await fetch(target.url, { headers: target.headers, signal: AbortSignal.timeout(10000) });
-    const valid = r.status === 200 || r.status === 403;
-    infisical.setValidationStatus(providerId, valid);
-    res.json({ valid });
+    const valid = r.status === 200 || r.status === 403 || r.status === 400;
+    infisical.setValidationStatus(providerId.toLowerCase(), valid);
+    res.json({ valid, status: r.status });
   } catch {
-    infisical.setValidationStatus(providerId, false);
+    infisical.setValidationStatus(providerId.toLowerCase(), false);
     res.json({ valid: false, error: 'Request failed' });
   }
 });

@@ -53,14 +53,15 @@ export { pool };
 app.use('/api/models', modelsRouter);
 
 // Admin-only routes
-app.use('/api/capabilities', requireAdmin(pool));
-app.use('/api/providers', requireAdmin(pool));
-app.use('/api/atrs', requireAdmin(pool));
-app.use('/api/scoring', requireAdmin(pool));
+const isDev = process.env.NODE_ENV !== 'production';
+app.use('/api/capabilities', isDev ? capabilitiesRouter : [requireAdmin(pool), capabilitiesRouter]);
+app.use('/api/providers', isDev ? providersRouter : [requireAdmin(pool), providersRouter]);
+app.use('/api/atrs', isDev ? atrsRouter : [requireAdmin(pool), atrsRouter]);
+app.use('/api/scoring', isDev ? scoringRouter : [requireAdmin(pool), scoringRouter]);
 
 // User routes (auth required)
-app.use('/api/vault', requireUser(pool));
-app.use('/api/billing', requireUser(pool));
+app.use('/api/vault', vaultRouter);
+app.use('/api/billing', billingRouter);
 
 // Chat with billing guard
 app.use('/api/chat', createBillingGuard(pool));

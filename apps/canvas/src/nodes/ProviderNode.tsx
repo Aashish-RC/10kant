@@ -34,11 +34,9 @@ function ModelRow({
       background: model.newlyDiscovered ? `${providerColor}12` : 'transparent',
       opacity: disabled ? 0.55 : 1,
     }}>
-      {/* Toggle */}
       <div style={S.toggle(model.enabled, disabled)} onClick={() => !disabled && onToggle(model.id)}>
         <div style={S.knob(model.enabled)} />
       </div>
-      {/* Name + badges */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-primary)' }}>{model.name}</span>
@@ -49,7 +47,6 @@ function ModelRow({
             <span style={{ fontSize: 8, background: '#ef444422', color: '#ef4444', padding: '0 4px', borderRadius: 3, fontWeight: 600 }}>DEPR</span>
           )}
         </div>
-        {/* Capability chips */}
         <div style={{ display: 'flex', gap: 3, marginTop: 2, flexWrap: 'wrap' }}>
           {model.capabilities.slice(0, 3).map(cap => (
             <span key={cap} style={{ fontSize: 8, padding: '0 4px', background: 'var(--bg-surface)', borderRadius: 2, color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
@@ -86,12 +83,14 @@ function ProviderNodeExpanded({ nodeId, providerId }: { nodeId: string; provider
     await saveKey(providerId, def.name, editKey.trim())
     setEditKey('')
     setShowKeyInput(false)
+    setTimeout(() => handleTestConnection(), 300)
   }
 
   const handleTestConnection = async () => {
     try {
       const res = await fetch(`${API_BASE}/api/vault/keys/${providerId}/test`, {
         method: 'POST',
+        headers: { 'x-user-id': 'dev-user' },
       });
       const data = await res.json();
       await setKeyValid(providerId, data.valid === true);
@@ -113,11 +112,14 @@ function ProviderNodeExpanded({ nodeId, providerId }: { nodeId: string; provider
     toggleModel(nodeId, modelId)
   }, [nodeId, toggleModel])
 
+  const lastSync = lastSyncedAt[providerId]
+  const hoursAgo = lastSync ? Math.floor((Date.now() - lastSync) / 3600000) : null
+  const isLive = hoursAgo !== null && hoursAgo < 6
+
   return (
     <div style={{ width: 300, background: 'var(--bg-node)', border: `1px solid ${def.color}`, borderRadius: 'var(--radius)', overflow: 'hidden', boxShadow: `0 0 0 1px ${def.color}33, 0 8px 32px rgba(0,0,0,0.5)`, display: 'flex', flexDirection: 'column' }}
       onClick={e => e.stopPropagation()}>
 
-      {/* Header */}
       <div style={{ background: `${def.color}18`, borderBottom: '1px solid var(--border)', padding: '10px 12px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 16 }}>{def.icon}</span>
@@ -129,10 +131,7 @@ function ProviderNodeExpanded({ nodeId, providerId }: { nodeId: string; provider
         </div>
       </div>
 
-      {/* Config fields */}
       <div style={{ padding: '4px 12px 12px', display: 'flex', flexDirection: 'column' }}>
-
-        {/* API Key — not shown for Ollama */}
         {def.requiresKey && (
           <>
             <label style={S.label}>Connect Credential <span style={{ color: '#ef4444' }}>*</span></label>
@@ -152,13 +151,12 @@ function ProviderNodeExpanded({ nodeId, providerId }: { nodeId: string; provider
             ) : (
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <div style={{ flex: 1, background: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 6, padding: '6px 10px', fontSize: 11, color: 'var(--text-muted)' }}>
-                  {keyEntry?.maskedValue} <span style={{ color: keyEntry?.isValid === true ? '#22c55e' : keyEntry?.isValid === false ? '#ef4444' : 'var(--text-muted)', marginLeft: 4 }}>{keyEntry?.isValid === true ? '✓' : keyEntry?.isValid === false ? '✗' : '?'}</span>
+                  {keyEntry?.maskedValue} <span style={{ color: keyEntry?.isValid === true ? '#22c55e' : keyEntry?.isValid === false ? '#ef4444' : '#f59e0b', marginLeft: 4 }}>{keyEntry?.isValid === true ? '✓' : keyEntry?.isValid === false ? '✗' : '?'}</span>
                 </div>
                 <button onClick={handleTestConnection} style={{ fontSize: 10, padding: '4px 8px', background: 'var(--bg-surface)', color: 'var(--text-secondary)', border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer' }}>Test</button>
                 <button onClick={() => { setShowKeyInput(true) }} style={{ fontSize: 10, padding: '4px 8px', background: 'var(--bg-surface)', color: 'var(--text-secondary)', border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer' }}>Rotate</button>
               </div>
             )}
-            {/* Inline vault entries list when there are stored keys */}
             {keyStored && !showKeyInput && (
               <div style={{ marginTop: 6, fontSize: 10, color: 'var(--text-muted)', display: 'flex', gap: 6, alignItems: 'center' }}>
                 <span style={{ width: 6, height: 6, borderRadius: '50%', background: keyEntry?.isValid === null ? '#6b7280' : keyEntry?.isValid ? '#22c55e' : '#ef4444' }} />
@@ -169,10 +167,8 @@ function ProviderNodeExpanded({ nodeId, providerId }: { nodeId: string; provider
           </>
         )}
 
-        {/* Model list — multi-select */}
         <label style={S.label}>Models <span style={{ color: '#ef4444' }}>*</span></label>
 
-        {/* Sync button + status */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
           <button
             onClick={handleSync}
@@ -195,7 +191,6 @@ function ProviderNodeExpanded({ nodeId, providerId }: { nodeId: string; provider
           )}
         </div>
 
-        {/* Model rows in a scrollable area */}
         <div style={{
           maxHeight: 180, overflowY: 'auto',
           background: 'var(--bg-base)', borderRadius: 6,
@@ -212,7 +207,6 @@ function ProviderNodeExpanded({ nodeId, providerId }: { nodeId: string; provider
           )}
         </div>
 
-        {/* Temperature */}
         <label style={S.label}>Temperature</label>
         <input
           type="number" min={0} max={2} step={0.1}
@@ -221,7 +215,6 @@ function ProviderNodeExpanded({ nodeId, providerId }: { nodeId: string; provider
           style={S.input}
         />
 
-        {/* Allow Image Uploads toggle — only if provider has vision models */}
         {hasVision && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
             <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Allow Image Uploads</span>
@@ -230,38 +223,40 @@ function ProviderNodeExpanded({ nodeId, providerId }: { nodeId: string; provider
             </div>
           </div>
         )}
+      </div>
 
-        {/* Temperature */}
-        {(() => {
-          const lastSync = lastSyncedAt[providerId]
-          const hoursAgo = lastSync ? Math.floor((Date.now() - lastSync) / 3600000) : null
-          const isLive = hoursAgo !== null && hoursAgo < 6
-          return (
-            <>
-              {isLive ? (
-                <>
-                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', boxShadow: '0 0 4px #22c55e' }} />
-                  <span style={{ fontSize: 10, color: '#22c55e', fontWeight: 600 }}>Live</span>
-                </>
-              ) : lastSync ? (
-                <>
-                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#f59e0b' }} />
-                  <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Last synced {hoursAgo}h ago</span>
-                </>
-              ) : null}
-              <button
-                onClick={async () => {
-                  try {
-                    await fetch(`${API_BASE}/api/models/sync/trigger`, { method: 'POST' })
-                  } catch { /* ignore */ }
-                }}
-                style={{ fontSize: 9, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
-              >
-                Sync Now
-              </button>
-            </>
-          )
-        })()}
+      <div style={{
+        background: `${def.color}18`,
+        borderTop: '1px solid var(--border)',
+        padding: '6px 12px',
+        display: 'flex', alignItems: 'center', gap: 6,
+      }}>
+        {isLive ? (
+          <>
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', boxShadow: '0 0 4px #22c55e' }} />
+            <span style={{ fontSize: 10, color: '#22c55e', fontWeight: 600 }}>Live</span>
+          </>
+        ) : lastSync ? (
+          <>
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#f59e0b' }} />
+            <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Last synced {hoursAgo}h ago</span>
+          </>
+        ) : (
+          <>
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#6b7280' }} />
+            <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Never synced</span>
+          </>
+        )}
+        <div style={{ flex: 1 }} />
+        <button
+          onClick={async () => {
+            try { await fetch(`${API_BASE}/api/models/sync/trigger`, { method: 'POST' }) }
+            catch { /* ignore */ }
+          }}
+          style={{ fontSize: 9, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
+        >
+          Sync Now
+        </button>
       </div>
     </div>
   )

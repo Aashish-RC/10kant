@@ -111,7 +111,7 @@ export async function saveKey(
         projectId: config.projectId,
         environment: config.environment,
         secretValue: rawKey,
-        secretComment: `API key for ${providerName}`,
+        secretComment: providerName,
         type: SecretType.Shared,
       });
     } catch (createErr: any) {
@@ -121,7 +121,7 @@ export async function saveKey(
           projectId: config.projectId,
           environment: config.environment,
           secretValue: rawKey,
-          secretComment: `API key for ${providerName}`,
+          secretComment: providerName,
           type: SecretType.Shared,
         });
       } else {
@@ -129,7 +129,7 @@ export async function saveKey(
       }
     }
 
-    _validationStatus.set(providerId, null);
+    _validationStatus.set(providerId.toLowerCase(), null);
 
     return {
       providerId,
@@ -144,7 +144,8 @@ export async function saveKey(
   // Simple xor-based "encryption" for fallback only (Infisical handles real encryption)
   const encryptedKey = Buffer.from(rawKey).toString('base64');
   const now = Date.now();
-  _fallbackStore[providerId] = {
+  const normalizedProviderId = providerId.toLowerCase();
+  _fallbackStore[normalizedProviderId] = {
     encryptedKey,
     providerName,
     createdAt: now,
@@ -179,12 +180,12 @@ export async function resolveKey(providerId: string): Promise<string | null> {
       });
       return secret.secretValue ?? null;
     } catch {
-      return null;
+      // Fall through to fallback store
     }
   }
 
   // Fallback
-  const entry = _fallbackStore[providerId];
+  const entry = _fallbackStore[providerId.toLowerCase()];
   if (!entry) return null;
   return Buffer.from(entry.encryptedKey, 'base64').toString('utf8');
 }
@@ -244,6 +245,7 @@ export async function revokeKey(providerId: string): Promise<boolean> {
   const secretName = getSecretName(providerId);
   const config = getConfig();
   const client = await getClient();
+  const normalizedId = providerId.toLowerCase();
 
   if (client) {
     try {
@@ -252,7 +254,7 @@ export async function revokeKey(providerId: string): Promise<boolean> {
         environment: config.environment,
         type: SecretType.Shared,
       });
-      _validationStatus.delete(providerId);
+      _validationStatus.delete(normalizedId);
       return true;
     } catch {
       return false;
@@ -260,9 +262,9 @@ export async function revokeKey(providerId: string): Promise<boolean> {
   }
 
   // Fallback
-  if (_fallbackStore[providerId]) {
-    delete _fallbackStore[providerId];
-    _validationStatus.delete(providerId);
+  if (_fallbackStore[normalizedId]) {
+    delete _fallbackStore[normalizedId];
+    _validationStatus.delete(normalizedId);
     return true;
   }
   return false;
@@ -272,10 +274,10 @@ export async function revokeKey(providerId: string): Promise<boolean> {
  * Update validation status (transient — stored in-memory only).
  */
 export function setValidationStatus(providerId: string, isValid: boolean | null): void {
-  _validationStatus.set(providerId, isValid);
-  if (_fallbackStore[providerId]) {
-    _fallbackStore[providerId].isValid = isValid;
-    _fallbackStore[providerId].lastUpdated = Date.now();
+  _validationStatus.set(providerId.toLowerCase(), isValid);
+  if (_fallbackStore[providerId.toLowerCase()]) {
+    _fallbackStore[providerId.toLowerCase()].isValid = isValid;
+    _fallbackStore[providerId.toLowerCase()].lastUpdated = Date.now();
   }
 }
 
@@ -283,5 +285,5 @@ export function setValidationStatus(providerId: string, isValid: boolean | null)
  * Get validation status.
  */
 export function getValidationStatus(providerId: string): boolean | null {
-  return _validationStatus.get(providerId) ?? null;
+  return _validationStatus.get(providerId.toLowerCase()) ?? null;
 }

@@ -48,13 +48,13 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     try {
       const entry = await saveKeyToVault(providerId, providerName, rawKey)
       // Also keep a copy in _fallbackRaw for resolveKey fallback
-      _fallbackRaw[providerId] = rawKey
+      _fallbackRaw[providerId.toLowerCase()] = rawKey
       const entries = { ...get().entries, [providerId]: entry }
       saveFallbackMeta(entries)
       set({ entries, isOnline: true })
     } catch {
       // Fallback to local-only
-      _fallbackRaw[providerId] = rawKey
+      _fallbackRaw[providerId.toLowerCase()] = rawKey
       const entry: VaultEntry = { providerId, providerName, maskedValue: '••••••••', lastUpdated: Date.now(), isValid: null }
       const entries = { ...get().entries, [providerId]: entry }
       saveFallbackMeta(entries)
@@ -70,7 +70,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       set({ isOnline: false })
     }
     // Always remove locally
-    delete _fallbackRaw[providerId]
+    delete _fallbackRaw[providerId.toLowerCase()]
     const entries = { ...get().entries }
     delete entries[providerId]
     saveFallbackMeta(entries)
@@ -137,5 +137,5 @@ export const useVaultStore = create<VaultState>((set, get) => ({
 // Called by the engine at call-time — uses the store's async resolveKey
 // Legacy synchronous version for backward compatibility
 export function resolveKey(providerId: string): string | null {
-  return _fallbackRaw[providerId] ?? null
+  return _fallbackRaw[providerId.toLowerCase()] ?? null
 }

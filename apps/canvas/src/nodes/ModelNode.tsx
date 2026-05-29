@@ -12,7 +12,7 @@ function StatusDot({ status }: { status: string }) {
 }
 
 function OverviewTab() {
-  const { providers } = useModelStore()
+  const { providers, syncModels } = useModelStore()
   const { entries: vaultEntries } = useVaultStore()
   const list = Object.values(providers)
 
@@ -27,20 +27,113 @@ function OverviewTab() {
   }
 
   return (
-    <div style={{ padding: 10, display: 'flex', flexDirection: 'column', gap: 6, overflowY: 'auto', maxHeight: 360 }}>
+    <div style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 8, overflowY: 'auto', maxHeight: 360 }}>
+      <div style={{
+        display: 'flex', gap: 8, padding: '8px 10px',
+        background: 'var(--bg-base)', borderRadius: 6,
+        border: '1px solid var(--border)',
+      }}>
+        <div style={{ flex: 1, textAlign: 'center' }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: '#6c63ff' }}>{list.length}</div>
+          <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Providers</div>
+        </div>
+        <div style={{ width: 1, background: 'var(--border)' }} />
+        <div style={{ flex: 1, textAlign: 'center' }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: '#22c55e' }}>
+            {list.reduce((s, p) => s + p.models.filter(m => m.enabled && !m.deprecated).length, 0)}
+          </div>
+          <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Active Models</div>
+        </div>
+        <div style={{ width: 1, background: 'var(--border)' }} />
+        <div style={{ flex: 1, textAlign: 'center' }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: '#f59e0b' }}>
+            {list.reduce((s, p) => s + p.models.filter(m => m.deprecated).length, 0)}
+          </div>
+          <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Deprecated</div>
+        </div>
+      </div>
+
       {list.map(p => {
         const def = PROVIDER_REGISTRY[p.providerId]
-        const enabledModels = p.models.filter(m => m.enabled).length
-        const hasKey = vaultEntries[p.providerId]?.isValid !== false && (def.requiresKey ? !!vaultEntries[p.providerId] : true)
+        const enabledModels = p.models.filter(m => m.enabled && !m.deprecated)
+        const hasKey = def.requiresKey ? !!vaultEntries[p.providerId] : true
+        const keyValid = vaultEntries[p.providerId]?.isValid
+        const statusColor =
+          p.status === 'healthy' ? '#22c55e' :
+          p.status === 'error'   ? '#ef4444' :
+          p.status === 'degraded'? '#f59e0b' : '#6b7280'
+
         return (
-          <div key={p.id} style={{ background: 'var(--bg-base)', borderRadius: 6, padding: '8px 10px', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <StatusDot status={p.status} />
-            <span style={{ fontSize: 14 }}>{def.icon}</span>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)' }}>{def.name}</div>
-              <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{enabledModels} model{enabledModels !== 1 ? 's' : ''} enabled{def.requiresKey ? (hasKey ? ' · key stored' : ' · no key') : ' · local'}</div>
+          <div key={p.id} style={{
+            background: 'var(--bg-base)', borderRadius: 6,
+            border: `1px solid ${def.color}33`,
+            overflow: 'hidden',
+          }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '7px 10px',
+              background: `${def.color}0d`,
+              borderBottom: enabledModels.length > 0 ? '1px solid var(--border)' : 'none',
+            }}>
+              <div style={{ position: 'relative', flexShrink: 0 }}>
+                <span style={{ fontSize: 14 }}>{def.icon}</span>
+                <div style={{
+                  position: 'absolute', bottom: -1, right: -1,
+                  width: 7, height: 7, borderRadius: '50%',
+                  background: statusColor,
+                  border: '1.5px solid var(--bg-base)',
+                  boxShadow: p.status === 'healthy' ? `0 0 4px ${statusColor}` : undefined,
+                }} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-primary)' }}>{def.name}</div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  {hasKey ? (
+                    <span style={{ color: keyValid === true ? '#22c55e' : keyValid === false ? '#ef4444' : '#f59e0b' }}>
+                      {keyValid === true ? '🔑 Key valid' : keyValid === false ? '🔑 Key invalid' : '🔑 Key untested'}
+                    </span>
+                  ) : (
+                    <span style={{ color: '#ef4444' }}>⚠ No key</span>
+                  )}
+                  <span style={{ color: 'var(--border-bright)' }}>·</span>
+                  <span>{enabledModels.length} model{enabledModels.length !== 1 ? 's' : ''} active</span>
+                </div>
+              </div>
+              <button
+                onClick={e => { e.stopPropagation(); syncModels(p.id) }}
+                title="Sync models"
+                style={{
+                  fontSize: 11, width: 22, height: 22, borderRadius: 4,
+                  background: 'var(--bg-surface)', color: 'var(--text-muted)',
+                  border: '1px solid var(--border)', cursor: 'pointer', flexShrink: 0,
+                }}
+              >⟳</button>
             </div>
-            <div style={{ fontSize: 10, color: p.status === 'healthy' ? '#22c55e' : 'var(--text-muted)' }}>{p.status}</div>
+
+            {enabledModels.length > 0 && (
+              <div style={{ padding: '5px 10px 7px', display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                {enabledModels.slice(0, 6).map(m => (
+                  <span key={m.id} style={{
+                    fontSize: 9, padding: '2px 7px',
+                    background: `${def.color}18`, color: def.color,
+                    borderRadius: 10, border: `1px solid ${def.color}33`,
+                    fontWeight: 500, letterSpacing: '0.02em',
+                    whiteSpace: 'nowrap', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis',
+                  }} title={m.name}>
+                    {m.name}
+                  </span>
+                ))}
+                {enabledModels.length > 6 && (
+                  <span style={{
+                    fontSize: 9, padding: '2px 7px',
+                    background: 'var(--bg-surface)', color: 'var(--text-muted)',
+                    borderRadius: 10, border: '1px solid var(--border)',
+                  }}>
+                    +{enabledModels.length - 6} more
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         )
       })}
@@ -101,7 +194,6 @@ function UpdatesTab() {
     setSyncing(true)
     try {
       await fetch(`${API_BASE}/api/models/sync/trigger`, { method: 'POST' })
-      // Poll will pick up changes on next cycle
     } catch { /* ignore */ }
     setSyncing(false)
   }, [])
@@ -132,7 +224,6 @@ function UpdatesTab() {
 
   return (
     <div style={{ padding: 10, display: 'flex', flexDirection: 'column', gap: 6, overflowY: 'auto', maxHeight: 360 }}>
-      {/* Apply All button */}
       {multipleProviders && (
         <button
           onClick={() => handleApply(providerIds)}
@@ -147,7 +238,6 @@ function UpdatesTab() {
         </button>
       )}
 
-      {/* Per-provider groups */}
       {providerIds.map(pid => {
         const changes = pendingChanges[pid] || []
         const def = PROVIDER_REGISTRY[pid as keyof typeof PROVIDER_REGISTRY]
@@ -161,7 +251,6 @@ function UpdatesTab() {
 
         return (
           <div key={pid} style={{ background: 'var(--bg-base)', borderRadius: 6, border: '1px solid var(--border)', overflow: 'hidden' }}>
-            {/* Provider header */}
             <div style={{ padding: '8px 10px', background: 'var(--bg-surface)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 6 }}>
               <span>{providerIcon}</span>
               <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)', flex: 1 }}>{providerName}</span>
@@ -178,7 +267,6 @@ function UpdatesTab() {
               </button>
             </div>
 
-            {/* Changes list */}
             <div style={{ padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: 4 }}>
               {added.map(c => (
                 <div key={`a-${c.modelId}`} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
@@ -222,7 +310,6 @@ function ModelNodeExpanded() {
   return (
     <div style={{ width: 340, background: 'var(--bg-node)', border: '1px solid #6c63ff', borderRadius: 'var(--radius)', overflow: 'hidden', boxShadow: '0 0 0 1px #6c63ff33, 0 8px 32px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column' }}
       onClick={e => e.stopPropagation()}>
-      {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
         onClick={() => setModelExpanded(false)}>
         <div style={{ width: 32, height: 32, borderRadius: 7, background: '#6c63ff22', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>🧠</div>
@@ -233,7 +320,6 @@ function ModelNodeExpanded() {
         <StatusDot status={overallStatus} />
         <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>▼</span>
       </div>
-      {/* Tabs */}
       <div style={{ display: 'flex', gap: 4, padding: '8px 10px', borderBottom: '1px solid var(--border)' }}>
         {(['overview', 'deprecations', 'updates'] as const).map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab)} style={{ padding: '4px 12px', fontSize: 11, fontWeight: 500, borderRadius: 4, border: 'none', cursor: 'pointer', background: activeTab === tab ? 'var(--accent)' : 'var(--bg-surface)', color: activeTab === tab ? 'white' : 'var(--text-secondary)', textTransform: 'capitalize' }}>
@@ -241,7 +327,6 @@ function ModelNodeExpanded() {
           </button>
         ))}
       </div>
-      {/* Tab content */}
       <div style={{ flex: 1, overflow: 'hidden' }}>
         {activeTab === 'overview' && <OverviewTab />}
         {activeTab === 'deprecations' && <DeprecationsTab />}
@@ -253,13 +338,23 @@ function ModelNodeExpanded() {
 
 function ModelNodeCollapsed() {
   const { providers, hasNewDiscoveries, hasNewDeprecations, hasChanges } = useModelStore()
+  const { entries: vaultEntries } = useVaultStore()
   const list = Object.values(providers)
   const statuses = list.map(p => p.status)
   const overallStatus = statuses.includes('error') ? 'error' : statuses.includes('degraded') ? 'degraded' : statuses.every(s => s === 'healthy') && statuses.length > 0 ? 'healthy' : 'unknown'
   const statusColor = overallStatus === 'healthy' ? '#22c55e' : overallStatus === 'degraded' ? '#f59e0b' : overallStatus === 'error' ? '#ef4444' : '#6b7280'
 
+  const totalEnabled = list.reduce((s, p) => s + p.models.filter(m => m.enabled && !m.deprecated).length, 0)
+
+  const hasKeyIssue = list.some(p => {
+    const def = PROVIDER_REGISTRY[p.providerId]
+    if (!def.requiresKey) return false
+    const entry = vaultEntries[p.providerId]
+    return !entry || entry.isValid === false
+  })
+
   return (
-    <div style={{ width: 220, minHeight: 56, background: 'var(--bg-node)', border: `1px solid ${hasChanges ? '#f59e0b44' : hasNewDiscoveries || hasNewDeprecations ? '#f59e0b44' : 'var(--border)'}`, borderRadius: 'var(--radius)', cursor: 'pointer', boxShadow: hasChanges || hasNewDiscoveries || hasNewDeprecations ? '0 0 0 1px #f59e0b33, 0 4px 16px rgba(0,0,0,0.4)' : '0 4px 16px rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', gap: 10, padding: '0 12px' }}>
+    <div style={{ width: 220, minHeight: 56, background: 'var(--bg-node)', border: `1px solid ${hasChanges || hasKeyIssue ? '#f59e0b44' : hasNewDiscoveries || hasNewDeprecations ? '#f59e0b44' : 'var(--border)'}`, borderRadius: 'var(--radius)', cursor: 'pointer', boxShadow: hasChanges || hasNewDiscoveries || hasNewDeprecations ? '0 0 0 1px #f59e0b33, 0 4px 16px rgba(0,0,0,0.4)' : '0 4px 16px rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', gap: 10, padding: '0 12px' }}>
       <div style={{ width: 32, height: 32, borderRadius: 7, background: '#6c63ff22', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, position: 'relative' }}>
         🧠
         <div style={{ position: 'absolute', bottom: -2, right: -2, width: 8, height: 8, borderRadius: '50%', background: statusColor, border: '2px solid var(--bg-node)' }} />
@@ -269,18 +364,30 @@ function ModelNodeCollapsed() {
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>Model</div>
-        <div style={{ display: 'flex', gap: 4, marginTop: 3, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 4, marginTop: 3, alignItems: 'center', flexWrap: 'wrap' }}>
           {list.slice(0, 4).map(p => (
             <span key={p.id} style={{ fontSize: 13 }} title={PROVIDER_REGISTRY[p.providerId].name}>{PROVIDER_REGISTRY[p.providerId].icon}</span>
           ))}
           {list.length === 0 && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>No providers</span>}
           {list.length > 4 && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>+{list.length - 4}</span>}
         </div>
+        <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 2, display: 'flex', gap: 4 }}>
+          {totalEnabled > 0 && <span>{totalEnabled} models active</span>}
+          {hasKeyIssue && <span style={{ color: '#f59e0b' }}>· key issue</span>}
+        </div>
         {(hasChanges || hasNewDiscoveries || hasNewDeprecations) && (
           <div style={{ display: 'flex', gap: 4, marginTop: 2 }}>
-            {hasChanges && <span style={{ fontSize: 8, background: '#f59e0b22', color: '#f59e0b', padding: '0 4px', borderRadius: 3, fontWeight: 600, animation: 'pulse 2s infinite' }}>Model updates available</span>}
-            {hasNewDiscoveries && !hasChanges && <span style={{ fontSize: 8, background: '#22c55e22', color: '#22c55e', padding: '0 4px', borderRadius: 3, fontWeight: 600 }}>New models</span>}
-            {hasNewDeprecations && !hasChanges && <span style={{ fontSize: 8, background: '#ef444422', color: '#ef4444', padding: '0 4px', borderRadius: 3, fontWeight: 600 }}>Deprecations</span>}
+            {hasChanges && (
+              <span style={{ fontSize: 8, background: '#f59e0b22', color: '#f59e0b', padding: '0 4px', borderRadius: 3, fontWeight: 600 }}>
+                Updates
+              </span>
+            )}
+            {hasNewDiscoveries && !hasChanges && (
+              <span style={{ fontSize: 8, background: '#22c55e22', color: '#22c55e', padding: '0 4px', borderRadius: 3, fontWeight: 600 }}>New models</span>
+            )}
+            {hasNewDeprecations && !hasChanges && (
+              <span style={{ fontSize: 8, background: '#ef444422', color: '#ef4444', padding: '0 4px', borderRadius: 3, fontWeight: 600 }}>Deprecations</span>
+            )}
           </div>
         )}
       </div>
