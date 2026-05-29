@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import ReactFlow, { Background, Controls, BackgroundVariant, ReactFlowProvider, useReactFlow, ReactFlowInstance } from 'reactflow'
 import 'reactflow/dist/style.css'
 import { useCanvasStore } from './store/canvasStore'
+import { useVaultStore } from './store/vault.store'
 import ModelNode from './nodes/ModelNode'
 import VaultNode from './nodes/VaultNode'
 import ProviderNode from './nodes/ProviderNode'
@@ -35,6 +36,7 @@ function Canvas() {
     if (!initialized.current) {
       initialized.current = true
       init()
+      useVaultStore.getState().refreshEntries()
       setTimeout(() => fitView({ padding: 0.25, duration: 600 }), 150)
     }
   }, [])

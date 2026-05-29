@@ -102,11 +102,14 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       const entries: Record<string, VaultEntry> = {}
       for (const key of keys) {
         entries[key.providerId] = key
+        try {
+          const rawKey = await resolveVaultKey(key.providerId)
+          if (rawKey) _fallbackRaw[key.providerId.toLowerCase()] = rawKey
+        } catch { /* non-fatal */ }
       }
       saveFallbackMeta(entries)
       set({ entries, isOnline: true })
     } catch {
-      // Fallback to localStorage
       const entries = loadFallbackMeta()
       set({ entries, isOnline: false })
     }

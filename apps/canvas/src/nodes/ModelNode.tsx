@@ -350,7 +350,7 @@ function ModelNodeCollapsed() {
     const def = PROVIDER_REGISTRY[p.providerId]
     if (!def.requiresKey) return false
     const entry = vaultEntries[p.providerId]
-    return !entry || entry.isValid === false
+    return entry?.isValid === false
   })
 
   return (

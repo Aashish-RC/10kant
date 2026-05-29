@@ -31,7 +31,6 @@ const PROVIDER_API: Record<string, {
   },
   google: {
     endpoint: '/models',
-    authScheme: 'Bearer',
     responseParser: (body) => body.models ?? [],
   },
   mistral: {
@@ -134,16 +133,21 @@ async function discoverViaProvider(
   }
 
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  let url = `${baseUrl.replace(/\/+$/, '')}${provider.endpoint}`;
 
   if (apiKey) {
     if (provider.authScheme === 'x-api-key') {
       headers['x-api-key'] = apiKey;
+      if (providerId === 'anthropic') {
+        headers['anthropic-version'] = '2023-06-01';
+      }
+    } else if (providerId === 'google') {
+      url = `${url}?key=${encodeURIComponent(apiKey)}`;
     } else {
       headers['Authorization'] = `${provider.authScheme} ${apiKey}`;
     }
   }
 
-  const url = `${baseUrl.replace(/\/+$/, '')}${provider.endpoint}`;
   const response = await fetch(url, { headers, signal: AbortSignal.timeout(15000) });
 
   if (!response.ok) {
