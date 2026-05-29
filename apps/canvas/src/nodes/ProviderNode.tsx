@@ -67,7 +67,7 @@ function ModelRow({
 
 function ProviderNodeExpanded({ nodeId, providerId }: { nodeId: string; providerId: ProviderId }) {
   const def = PROVIDER_REGISTRY[providerId]
-  const { providers, setBaseUrl, setTemperature, toggleModel, syncModels, syncStatus, syncError, lastSyncedAt } = useModelStore()
+  const { providers, setTemperature, toggleModel, syncModels, syncStatus, syncError, lastSyncedAt } = useModelStore()
   const { saveKey, hasKey, getEntry, setKeyValid } = useVaultStore()
   const { removeProviderNode } = useCanvasStore()
 
@@ -89,7 +89,15 @@ function ProviderNodeExpanded({ nodeId, providerId }: { nodeId: string; provider
   }
 
   const handleTestConnection = async () => {
-    await setKeyValid(providerId, true)
+    try {
+      const res = await fetch(`${API_BASE}/api/vault/keys/${providerId}/test`, {
+        method: 'POST',
+      });
+      const data = await res.json();
+      await setKeyValid(providerId, data.valid === true);
+    } catch {
+      await setKeyValid(providerId, false);
+    }
   }
 
   const enabledModels = provider.models.filter(m => m.enabled && !m.deprecated)
@@ -168,7 +176,7 @@ function ProviderNodeExpanded({ nodeId, providerId }: { nodeId: string; provider
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
           <button
             onClick={handleSync}
-            disabled={isSyncing || provider.providerId === 'ollama' || provider.providerId === 'custom'}
+            disabled={isSyncing}
             style={{
               ...S.tinyBtn,
               opacity: isSyncing ? 0.6 : 1,
@@ -195,9 +203,7 @@ function ProviderNodeExpanded({ nodeId, providerId }: { nodeId: string; provider
         }}>
           {provider.models.length === 0 ? (
             <div style={{ padding: '8px 6px', fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center' }}>
-              {provider.providerId === 'ollama' || provider.providerId === 'custom'
-                ? 'Use Auto-detect below'
-                : 'No models yet. Click Sync Models.'}
+              No models yet. Click Sync Models.
             </div>
           ) : (
             provider.models.map(m => (
@@ -225,49 +231,7 @@ function ProviderNodeExpanded({ nodeId, providerId }: { nodeId: string; provider
           </div>
         )}
 
-        {/* Ollama-specific: base URL + auto-detect */}
-        {providerId === 'ollama' && (
-          <>
-            <label style={S.label}>Endpoint URL</label>
-            <input style={S.input} value={provider.baseUrl} onChange={e => setBaseUrl(nodeId, e.target.value)} placeholder="http://localhost:11434" />
-            <button
-              onClick={async () => {
-                try {
-                  const r = await fetch(`${provider.baseUrl}/api/tags`)
-                  const data = await r.json()
-                  if (data.models) {
-                    // Map Ollama models into our format
-                    const ollamaModels = data.models.map((m: any) => ({
-                      id: m.name,
-                      name: m.name,
-                      contextWindow: 4096,
-                      costPer1k: { input: 0, output: 0 },
-                      capabilities: [],
-                      enabled: true,
-                    }))
-                    useModelStore.setState(s => ({
-                      providers: {
-                        ...s.providers,
-                        [nodeId]: {
-                          ...s.providers[nodeId],
-                          models: ollamaModels,
-                          status: 'healthy' as const,
-                        },
-                      },
-                    }))
-                  }
-                } catch { /* silent */ }
-              }}
-              style={{ marginTop: 8, width: '100%', padding: '7px', fontSize: 11, background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text-primary)', cursor: 'pointer' }}
-            >
-              Auto-detect Models
-            </button>
-          </>
-        )}
-      </div>
-
-      {/* Sync status footer */}
-      <div style={{ background: `${def.color}18`, borderTop: '1px solid var(--border)', padding: '6px 12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+        {/* Temperature */}
         {(() => {
           const lastSync = lastSyncedAt[providerId]
           const hoursAgo = lastSync ? Math.floor((Date.now() - lastSync) / 3600000) : null

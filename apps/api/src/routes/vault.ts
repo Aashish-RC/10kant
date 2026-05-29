@@ -7,7 +7,7 @@ const router = Router();
 // POST /api/vault/keys — store a key (with LiteLLM sync)
 router.post('/keys', async (req: Request, res: Response) => {
   const { providerId, providerName, rawKey } = req.body;
-  if (!providerId || !rawKey) {
+  if (!providerId || !rawKey || rawKey.trim() === '') {
     res.status(400).json({ error: 'providerId and rawKey are required' });
     return;
   }
@@ -80,6 +80,42 @@ router.patch('/keys/:providerId/status', (req: Request, res: Response) => {
     success: true,
     isValid: infisical.getValidationStatus(providerId),
   });
+});
+
+// POST /api/vault/keys/:providerId/test — validate a stored key
+router.post('/keys/:providerId/test', async (req: Request, res: Response) => {
+  const { providerId } = req.params;
+  const rawKey = await infisical.resolveKey(providerId);
+  if (!rawKey) {
+    res.status(404).json({ valid: false, error: 'Key not found' });
+    return;
+  }
+
+  const testUrls: Record<string, { url: string; headers: Record<string, string>; useKeyInUrl?: boolean }> = {
+    openai: { url: 'https://api.openai.com/v1/models', headers: { Authorization: `Bearer ${rawKey}` } },
+    anthropic: { url: 'https://api.anthropic.com/v1/models', headers: { 'x-api-key': rawKey, 'anthropic-version': '2023-06-01' } },
+    google: { url: `https://generativelanguage.googleapis.com/v1/models?key=${rawKey}`, headers: {}, useKeyInUrl: true },
+    mistral: { url: 'https://api.mistral.ai/v1/models', headers: { Authorization: `Bearer ${rawKey}` } },
+    cohere: { url: 'https://api.cohere.ai/v1/models', headers: { Authorization: `Bearer ${rawKey}` } },
+    groq: { url: 'https://api.groq.com/openai/v1/models', headers: { Authorization: `Bearer ${rawKey}` } },
+    together: { url: 'https://api.together.xyz/v1/models', headers: { Authorization: `Bearer ${rawKey}` } },
+  };
+
+  const target = testUrls[providerId];
+  if (!target) {
+    res.json({ valid: true });
+    return;
+  }
+
+  try {
+    const r = await fetch(target.url, { headers: target.headers, signal: AbortSignal.timeout(10000) });
+    const valid = r.status === 200 || r.status === 403;
+    infisical.setValidationStatus(providerId, valid);
+    res.json({ valid });
+  } catch {
+    infisical.setValidationStatus(providerId, false);
+    res.json({ valid: false, error: 'Request failed' });
+  }
 });
 
 export default router;

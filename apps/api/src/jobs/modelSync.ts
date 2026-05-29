@@ -10,7 +10,7 @@ interface NormalizedModel {
 
 const SUPPORTED_PROVIDERS = [
   'openai', 'anthropic', 'google', 'mistral',
-  'cohere', 'groq', 'together', 'ollama',
+  'cohere', 'groq', 'together',
 ] as const;
 
 type ProviderId = typeof SUPPORTED_PROVIDERS[number];
@@ -26,7 +26,6 @@ const LITELLM_PREFIX: Record<string, string> = {
   cohere: 'cohere',
   groq: 'groq',
   together: 'together',
-  ollama: 'ollama',
 };
 
 /**
@@ -74,7 +73,7 @@ async function fetchAnthropicModels(key: string): Promise<NormalizedModel[]> {
 
 async function fetchGoogleModels(key: string): Promise<NormalizedModel[]> {
   const res = await fetch(
-    'https://generativelanguage.googleapis.com/v1beta/models?key=' + encodeURIComponent(key),
+    'https://generativelanguage.googleapis.com/v1/models?key=' + encodeURIComponent(key),
     { signal: AbortSignal.timeout(15000) },
   );
   if (!res.ok) throw new Error(`Google API returned ${res.status}`);
@@ -124,14 +123,6 @@ async function fetchTogetherModels(key: string): Promise<NormalizedModel[]> {
   return (body.data ?? []).map((m) => ({ id: m.id, name: m.id }));
 }
 
-async function fetchOllamaModels(baseUrl: string): Promise<NormalizedModel[]> {
-  const url = (baseUrl || 'http://ollama:11434').replace(/\/+$/, '') + '/api/tags';
-  const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
-  if (!res.ok) throw new Error(`Ollama API returned ${res.status}`);
-  const body = await res.json() as { models?: Array<{ name: string }> };
-  return (body.models ?? []).map((m) => ({ id: m.name, name: m.name }));
-}
-
 interface ProviderFetcher {
   fetch: (key: string, baseUrl?: string) => Promise<NormalizedModel[]>;
   needsKey: boolean;
@@ -145,7 +136,6 @@ const PROVIDER_FETCHERS: Record<string, ProviderFetcher> = {
   cohere: { fetch: (k) => fetchCohereModels(k), needsKey: true },
   groq: { fetch: (k) => fetchGroqModels(k), needsKey: true },
   together: { fetch: (k) => fetchTogetherModels(k), needsKey: true },
-  ollama: { fetch: (k, baseUrl) => fetchOllamaModels(baseUrl ?? 'http://ollama:11434'), needsKey: false },
 };
 
 // ─── LiteLLM Runtime Update ──────────────────────────────────────────────────
@@ -157,16 +147,12 @@ async function registerModelWithLiteLLM(
   providerId: string,
   modelId: string,
   apiKey: string,
-  baseUrl?: string,
 ): Promise<void> {
   const prefix = LITELLM_PREFIX[providerId] || providerId;
   const litellmParams: Record<string, string> = {
     model: `${prefix}/${modelId}`,
     api_key: apiKey,
   };
-  if (baseUrl) {
-    litellmParams.api_base = baseUrl;
-  }
 
   const res = await fetch(`${LITELLM_URL}/model/new`, {
     method: 'POST',
@@ -212,39 +198,19 @@ interface SyncResult {
   error?: string;
 }
 
-async function syncProvider(
-  pool: Pool,
+/**
+ * Diff live models against the stored snapshot to produce added/removed/deprecated lists.
+ * Does NOT fetch from provider APIs — uses the provided liveModels.
+ */
+function diffModels(
   providerId: string,
-  key: string | null,
-  baseUrl?: string,
-): Promise<SyncResult> {
-  const fetcher = PROVIDER_FETCHERS[providerId];
-  if (!fetcher) {
-    return { providerId, added: [], removed: [], deprecated: [], error: 'Unknown provider' };
-  }
-
-  // Fetch live models from provider API
-  let liveModels: NormalizedModel[];
-  try {
-    liveModels = await fetcher.fetch(key ?? '', baseUrl);
-  } catch (err: any) {
-    return { providerId, added: [], removed: [], deprecated: [], error: err.message };
-  }
-
-  // Load last snapshot from DB
-  const snapshotResult = await pool.query(
-    'SELECT models, updated_at FROM model_snapshots WHERE provider_id = $1',
-    [providerId],
-  );
-
-  const snapshotModels: NormalizedModel[] = snapshotResult.rows.length > 0
-    ? snapshotResult.rows[0].models as NormalizedModel[]
-    : [];
-
+  snapshotModels: NormalizedModel[],
+  liveModels: NormalizedModel[],
+): SyncResult {
   const snapshotMap = new Map(snapshotModels.map((m) => [m.id, m]));
   const liveMap = new Map(liveModels.map((m) => [m.id, m]));
 
-  // Diff: added
+  // Diff: added — in live but not in snapshot
   const added: NormalizedModel[] = [];
   for (const lm of liveModels) {
     if (!snapshotMap.has(lm.id)) {
@@ -252,7 +218,7 @@ async function syncProvider(
     }
   }
 
-  // Diff: removed
+  // Diff: removed — in snapshot but not in live
   const removed: NormalizedModel[] = [];
   for (const sm of snapshotModels) {
     if (!liveMap.has(sm.id)) {
@@ -260,7 +226,7 @@ async function syncProvider(
     }
   }
 
-  // Diff: deprecated
+  // Diff: deprecated — still in live but naming pattern suggests deprecation
   const newlyDeprecated: NormalizedModel[] = [];
   for (const lm of liveModels) {
     if (snapshotMap.has(lm.id)) {
@@ -270,9 +236,6 @@ async function syncProvider(
       }
     }
   }
-  // Also models in the snapshot but no longer in live list are handled as "removed", not "deprecated"
-  // The task says deprecated can also be models that were in snapshot as non-deprecated and API now marks them deprecated
-  // Since most APIs don't return a deprecated flag, we use naming patterns
 
   return { providerId, added, removed, deprecated: newlyDeprecated };
 }
@@ -308,16 +271,15 @@ async function updateLiteLLMForChanges(
   added: NormalizedModel[],
   removed: NormalizedModel[],
   apiKey: string | null,
-  baseUrl?: string,
 ): Promise<void> {
-  if (!apiKey && providerId !== 'ollama') return;
+  if (!apiKey) return;
 
   const key = apiKey ?? '';
 
   // Register added models
   for (const model of added) {
     try {
-      await registerModelWithLiteLLM(providerId, model.id, key, baseUrl);
+      await registerModelWithLiteLLM(providerId, model.id, key);
     } catch (err: any) {
       console.error(`[modelSync] LiteLLM register failed for ${providerId}/${model.id}: ${err.message}`);
     }
@@ -343,6 +305,20 @@ async function updateSnapshot(pool: Pool, providerId: string, liveModels: Normal
      DO UPDATE SET models = $2::jsonb, updated_at = NOW()`,
     [providerId, JSON.stringify(liveModels)],
   );
+
+  // Upsert each live model into model_registry with status 'active'
+  for (const m of liveModels) {
+    await pool.query(
+      `INSERT INTO model_registry (model_id, provider_id, display_name, status, last_seen_at, first_seen_at, updated_at)
+       VALUES ($1, $2, $3, 'active', NOW(), NOW(), NOW())
+       ON CONFLICT (model_id, provider_id) DO UPDATE
+         SET status = 'active', last_seen_at = NOW(), display_name = COALESCE($3, model_registry.display_name), updated_at = NOW()`,
+      [m.id, providerId, m.name],
+    ).catch((err) => {
+      // model_registry table may not exist yet if migration hasn't run; log and ignore
+      console.warn(`[modelSync] model_registry upsert failed for ${providerId}/${m.id}: ${err.message}`);
+    });
+  }
 }
 
 // ─── Main Sync Run ───────────────────────────────────────────────────────────
@@ -376,29 +352,44 @@ export async function runSync(
       continue;
     }
 
-    const baseUrl = providerId === 'ollama'
-      ? (process.env.OLLAMA_BASE_URL || 'http://ollama:11434')
-      : undefined;
-
     // Fetch live models
     let liveModels: NormalizedModel[];
     try {
-      liveModels = await fetcher.fetch(apiKey ?? '', baseUrl);
+      liveModels = await fetcher.fetch(apiKey ?? '');
     } catch (err: any) {
       log(`${providerId}: fetch error — ${err.message}`);
       summaryParts.push(`${providerId}: fetch error`);
       continue;
     }
 
-    // Diff against snapshot
-    const result = await syncProvider(pool, providerId, apiKey, baseUrl);
+    // Load last snapshot from DB
+    const snapshotResult = await pool.query(
+      'SELECT models, updated_at FROM model_snapshots WHERE provider_id = $1',
+      [providerId],
+    );
+
+    const snapshotModels: NormalizedModel[] = snapshotResult.rows.length > 0
+      ? snapshotResult.rows[0].models as NormalizedModel[]
+      : [];
+
+    // Diff snapshot vs live models
+    const result = diffModels(providerId, snapshotModels, liveModels);
+
+    // For models in snapshot but not in live (removed), update model_registry status to 'deprecated'
+    for (const removedModel of result.removed) {
+      await pool.query(
+        `UPDATE model_registry SET status = 'deprecated', updated_at = NOW()
+         WHERE model_id = $1 AND provider_id = $2`,
+        [removedModel.id, providerId],
+      ).catch(() => {}); // ignore if table doesn't exist yet
+    }
 
     // Write changelog entries
     if (result.added.length > 0 || result.removed.length > 0 || result.deprecated.length > 0) {
       await writeChangelog(pool, result);
 
       // Update LiteLLM (fire-and-forget, errors logged but don't block)
-      await updateLiteLLMForChanges(providerId, result.added, result.removed, apiKey, baseUrl);
+      await updateLiteLLMForChanges(providerId, result.added, result.removed, apiKey);
     }
 
     // Update snapshot with current live models

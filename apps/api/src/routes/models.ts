@@ -69,7 +69,6 @@ const LITELLM_PROVIDER_PREFIX: Record<string, string> = {
   cohere: 'cohere/',
   together: 'together_ai/',
   groq: 'groq/',
-  ollama: 'ollama/',
 };
 
 /**
@@ -131,7 +130,6 @@ async function discoverViaProvider(
 ): Promise<Array<{ id: string; name: string }>> {
   const provider = PROVIDER_API[providerId];
   if (!provider) {
-    // For unknown providers (ollama, custom) return empty — they handle locally
     return [];
   }
 

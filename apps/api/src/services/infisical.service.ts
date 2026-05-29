@@ -7,6 +7,8 @@ let _client: InfisicalSDK | null = null;
 let _authenticated = false;
 
 // In-memory fallback store when Infisical is unreachable
+// DEVELOPMENT-ONLY: This is NOT a security control. Keys are stored as base64-encoded strings.
+// For production, always use Infisical which provides proper encryption at rest.
 // Key structure: providerId -> { encryptedKey, providerName, createdAt, lastTested, isValid }
 interface KeyEntry {
   encryptedKey: string;

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useModelStore } from '../store/model.store'
 import { PROVIDER_REGISTRY, ProviderId } from '../data/providers'
 
-const PROVIDER_ORDER: ProviderId[] = ['openai', 'anthropic', 'google', 'mistral', 'cohere', 'together', 'groq', 'ollama', 'custom']
+const PROVIDER_ORDER: ProviderId[] = ['openai', 'anthropic', 'google', 'mistral', 'cohere', 'together', 'groq']
 
 export default function Sidebar() {
   const [search, setSearch] = useState('')

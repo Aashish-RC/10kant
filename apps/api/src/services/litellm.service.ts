@@ -130,7 +130,6 @@ export function getLiteLLMProviderPrefix(providerId: string): string {
     cohere: 'cohere/',
     together: 'together_ai/',
     groq: 'groq/',
-    ollama: 'ollama/',
   };
   return prefixMap[providerId] || `${providerId}/`;
 }

@@ -1,6 +1,6 @@
 export type ProviderId =
   | 'openai' | 'anthropic' | 'google' | 'mistral'
-  | 'cohere' | 'together' | 'groq' | 'ollama' | 'custom'
+  | 'cohere' | 'together' | 'groq'
 
 export type ModelCapability =
   | 'code' | 'reasoning' | 'vision' | 'speed' | 'long-ctx' | 'cost-efficient' | 'multimodal' | 'function-calling'
@@ -23,10 +23,10 @@ export interface ProviderDef {
   id: ProviderId
   name: string
   description: string
-  icon: string              // emoji for now
+  icon: string
   color: string
   defaultBaseUrl: string
-  requiresKey: boolean      // false for ollama
+  requiresKey: boolean
   models: ProviderModel[]
 }
 
@@ -44,10 +44,12 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderDef> = {
   },
   anthropic: {
     id: 'anthropic', name: 'Anthropic', description: 'Claude 3.5, Claude 3 models',
-    icon: '🟣', color: '#d4a843', defaultBaseUrl: 'https://api.anthropic.com', requiresKey: true,
+    icon: '🟣', color: '#d4a843', defaultBaseUrl: 'https://api.anthropic.com/v1', requiresKey: true,
     models: [
-      { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', contextWindow: 200000, costPer1k: { input: 0.003, output: 0.015 }, capabilities: ['reasoning', 'code', 'vision', 'function-calling'], enabled: true },
-      { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku', contextWindow: 200000, costPer1k: { input: 0.001, output: 0.005 }, capabilities: ['speed', 'cost-efficient', 'function-calling'], enabled: true },
+      { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', contextWindow: 200000, costPer1k: { input: 0.003, output: 0.015 }, capabilities: ['reasoning', 'code', 'vision', 'function-calling'], enabled: true },
+      { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', contextWindow: 200000, costPer1k: { input: 0.001, output: 0.005 }, capabilities: ['speed', 'cost-efficient', 'function-calling'], enabled: true },
+      { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', contextWindow: 200000, costPer1k: { input: 0.003, output: 0.015 }, capabilities: ['reasoning', 'code', 'vision', 'function-calling'], enabled: false, deprecated: true, successor: 'claude-sonnet-4-6' },
+      { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku', contextWindow: 200000, costPer1k: { input: 0.001, output: 0.005 }, capabilities: ['speed', 'cost-efficient', 'function-calling'], enabled: false, deprecated: true, successor: 'claude-haiku-4-5-20251001' },
       { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus', contextWindow: 200000, costPer1k: { input: 0.015, output: 0.075 }, capabilities: ['reasoning', 'long-ctx'], enabled: false },
       { id: 'claude-2.1', name: 'Claude 2.1', contextWindow: 200000, costPer1k: { input: 0.008, output: 0.024 }, capabilities: ['reasoning'], enabled: false, deprecated: true, deprecatedAt: '2025-10-31', successor: 'claude-3-5-sonnet-20241022' },
     ],
@@ -95,16 +97,6 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderDef> = {
       { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B Instant', contextWindow: 128000, costPer1k: { input: 0.00005, output: 0.00008 }, capabilities: ['speed', 'cost-efficient'], enabled: true },
       { id: 'gemma2-9b-it', name: 'Gemma 2 9B', contextWindow: 8192, costPer1k: { input: 0.0002, output: 0.0002 }, capabilities: ['speed', 'cost-efficient'], enabled: false },
     ],
-  },
-  ollama: {
-    id: 'ollama', name: 'Ollama', description: 'Run models locally on your machine',
-    icon: '🐙', color: '#888', defaultBaseUrl: 'http://localhost:11434', requiresKey: false,
-    models: [],   // populated at runtime via auto-detect
-  },
-  custom: {
-    id: 'custom', name: 'Custom Endpoint', description: 'Any OpenAI-compatible API endpoint',
-    icon: '⚙️', color: '#8888aa', defaultBaseUrl: '', requiresKey: true,
-    models: [],
   },
 }
 

@@ -90,7 +90,7 @@ export const useModelStore = create<ModelStore>((set, get) => ({
       id: nodeId,
       providerId,
       baseUrl: def.defaultBaseUrl,
-      timeout: providerId === 'ollama' ? 10000 : 30000,
+      timeout: 30000,
       temperature: 0.7,
       status: 'unknown',
       models: def.models.map(m => ({ ...m })),
@@ -146,8 +146,7 @@ export const useModelStore = create<ModelStore>((set, get) => ({
 
   syncModels: async (nodeId) => {
     const provider = get().providers[nodeId]
-    if (!provider || provider.providerId === 'ollama' || provider.providerId === 'custom') {
-      // Ollama and custom use local auto-detect, not this flow
+    if (!provider) {
       return { hasNew: false, hasNewDeprecated: false }
     }
 
